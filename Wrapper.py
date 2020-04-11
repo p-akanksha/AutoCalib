@@ -229,6 +229,7 @@ def main():
 
 	# get initial estimate of K
 	K, corners, homographies = estimate_K(images)
+	np.set_printoptions(formatter={'float_kind':'{:f}'.format})
 	print("Initial estimate of K: ")
 	print(K)
 
@@ -252,7 +253,6 @@ def main():
 	D[0] = res.x[5]
 	D[1] = res.x[6]
 
-	np.set_printoptions(formatter={'float_kind':'{:f}'.format})
 	print("intrinsic parameters:")
 	print(K)
 	print("distortion coefficients:")
