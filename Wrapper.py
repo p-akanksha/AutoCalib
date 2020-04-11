@@ -30,40 +30,22 @@ def find_K(homographies):
 		v22 = compute_v(h2, h2)
 		v12 = compute_v(h1, h2)
 
-		# v22 = compute_v(h2, h2)
-		# v33 = compute_v(h3, h3)
-		# v23 = compute_v(h2, h3)
-
 		V[2*i] = v12
 		V[2*i + 1] = v11 - v22
 
 	# calculate b
-	# print(V)
 	U, S, Vh = np.linalg.svd(V)
-	# z = np.zeros((26,6))
-	# z[0][0] = S[0]
-	# z[1][1] = S[1]
-	# z[2][2] = S[2]
-	# z[3][3] = S[3]
-	# z[4][4] = S[4]
-	# z[5][5] = S[5]
-	# print(U.shape)
-	# print(S.shape)
-	# print(Vh.shape)
 	b = Vh[-1, :]
-	# x = np.matmul(z,Vh)
-	# y = np.matmul(U,x)
-	# print(y)
 
 	# get patameters of K
 	v0 = (b[1]*b[3] - b[0]*b[4])/(b[0]*b[2] - b[1]**2)
 	lam = b[5] - (b[3]**2 + v0*(b[1]*b[3] - b[0]*b[4]))/b[0]
 	alpha = math.sqrt(lam/b[0])
-	# print((b[0]*b[2] - b[1]**2))
 	beta = math.sqrt((lam*b[0])/(b[0]*b[2] - b[1]**2))
 	gamma = -(b[1]*(alpha**2)*beta)/lam
 	u0 = gamma*v0/beta - b[3]*(alpha**2)/gamma
 
+	# construct K
 	K = np.zeros((3,3))
 	K[0][0] = alpha
 	K[0][1] = gamma
@@ -99,8 +81,6 @@ def estimate_K(images):
 				  		[cor[45][0][0], cor[45][0][1]],
 				  		[cor[53][0][0], cor[53][0][1]]])
 		corners.append(cor)
-		# corners.append(c)
-
 
 		# calculate homography
 		H, mask = cv2.findHomography(points, c)
@@ -108,7 +88,6 @@ def estimate_K(images):
 
 	homographies = np.asarray(homographies)
 	corners = np.asarray(corners)
-	print(corners.shape)
 
 	K = find_K(homographies)
 
@@ -133,7 +112,6 @@ def init_est(K):
 	return est
 
 def find_Rt(K, H):
-	# print(np.linalg.det(K))
 	K_inv = np.linalg.inv(K)
 	h1 = H[:, 0]
 	h2 = H[:, 1]
@@ -147,14 +125,7 @@ def find_Rt(K, H):
 	t = lam*np.matmul(K_inv, h3)
 	t = np.reshape(t, (3,1))
 
-	# print(r1)
-	# print(r2)
-	# print(r3)
-	# print(t.shape)
-
 	Q = np.array([r1, r2, r3]).transpose()
-	# print(Q)
-	# print(" ")
 
 	U, S, Vh = np.linalg.svd(Q)
 	R = np.matmul(U, Vh)
@@ -177,41 +148,33 @@ def rep_error(param, corners, homographies):
 	D[0] = param[5]
 	D[1] = param[6]
 
-	# points = np.asarray([[21.5, 21.5, 0, 1],
-	# 					 [193.5, 21.5, 0, 1],
-	# 		   			 [21.5, 129, 0, 1], 
-	# 		   			 [193.5, 129, 0, 1]])
-	# points = points.T
-
 	points = []
-	# print("points")
 	for i in range(6):
 		for j in range(9):
-			# print(21.5*(j+1),21.5*(i+1))
 			points.append([21.5*(j+1),21.5*(i+1),0,1])
 	points = np.array(points)
 	points = points.T
-	# print(points)
 
 	error = []
-	# estimate Rt
+	
 	for i, pts in enumerate(corners):
+		# estimate Rt
 		Rt = find_Rt(K, homographies[i])
 
 		# Projection Matrix
 		P = np.matmul(K, Rt)
+
+		# Get points in camera coordinate system
 		pt_cam = np.matmul(Rt, points)
 		pt_cam = pt_cam/pt_cam[2]
-		pt_img = np.matmul(P, points)
-		# print(pt_cam)
-		pt_img = pt_img/pt_img[2]
-		# print(pt_img)
 
+		# Get points in image coordinate system
+		pt_img = np.matmul(P, points)
+		pt_img = pt_img/pt_img[2]
+
+		# Reprojected points
 		u_hat = pt_img[0] + (pt_img[0] - K[0][2])*(D[0]*(pt_cam[0]**2 + pt_cam[1]**2) + D[1]*(pt_cam[0]**2 + pt_cam[1]**2)**2)
 		v_hat = pt_img[1] + (pt_img[1] - K[1][2])*(D[0]*(pt_cam[0]**2 + pt_cam[1]**2) + D[1]*(pt_cam[0]**2 + pt_cam[1]**2)**2)
-
-		# print(u_hat)
-		# print(v_hat)
 
 		reproj = np.vstack([u_hat, v_hat])
 		reproj = reproj.T
@@ -220,20 +183,38 @@ def rep_error(param, corners, homographies):
 
 		x = np.subtract(reproj, pts)
 		e = (np.linalg.norm(np.subtract(reproj, pts), axis = 1))**2
-		# print("what", x.shape)
-		# print("corners", pts.shape)
-		# print("reproj", reproj.shape)
-		# print(e.shape)
-		# e = np.mean(e)
-		# print(e)
-		# print("error: ", e)
 		error.append(e)
 
+	error = np.float32(error)
 	error = np.asarray(error) 
-	error = error.reshape(702)
-	# print(error.shape)	
+	error = error.reshape(702)	
 
 	return error
+
+def RMSerror(K, D, homographies, corner_points):
+
+	points = []
+	for i in range(6):
+		for j in range(9):
+			points.append([21.5*(j+1),21.5*(i+1),0])
+	points = np.array(points)
+
+	mean = 0
+	error = np.zeros([2,1])
+	for i in range(homographies.shape[0]):
+		# find extrinsic parameters
+		Rt = find_Rt(K, homographies[i])
+
+		# Reprojected points
+		img_points, _ = cv2.projectPoints(points, Rt[:,0:3], Rt[:,3], K, D)
+		img_points = np.array(img_points)
+
+		# calculate error
+		errors = np.linalg.norm(corner_points[i,:,0,:]-img_points[:,0,:],axis=1)
+		error = np.concatenate([error,np.reshape(errors,(errors.shape[0],1))])
+
+	mean_error = np.mean(error)
+	return mean_error
 
 def main():
 	cur_dir = os.path.dirname(os.path.abspath(__file__))
@@ -248,14 +229,16 @@ def main():
 
 	# get initial estimate of K
 	K, corners, homographies = estimate_K(images)
+	print("Initial estimate of K: ")
+	print(K)
 
+	# Get data in correct format to pass to optimizer
 	est = init_est(K)
 
 	# optimize the values of K
 	res = least_squares(rep_error,x0=np.squeeze(est),method='lm',args=(corners, homographies))
-	# rep_error(est, corners, homographies)
-	# print(res.x)
 
+	# construct K and D matrix
 	K = np.zeros((3,3))
 	D = np.zeros((5,1))
 
@@ -269,51 +252,29 @@ def main():
 	D[0] = res.x[5]
 	D[1] = res.x[6]
 
-	# print '{:f}'.format(K)
 	np.set_printoptions(formatter={'float_kind':'{:f}'.format})
+	print("intrinsic parameters:")
 	print(K)
+	print("distortion coefficients:")
 	print(D)
 
-	K_m = np.asarray([[2063.3798, 0, 763.1675],
-					 [0, 2046.5943, 1381.0201],
-					 [0, 0, 1]], dtype='float32')
-	D_m = np.asarray([0.0581, -0.2572, 0, 0, 0])
-
 	undist_images = []
-	h, w, _ = images[0].shape
-	dim = (int(0.4*w), int(0.4*h))
-	for im in images:
-		cv2.imshow("image", cv2.resize(im, dim))
-		if cv2.waitKey(0) & 0xff == 27:
-			cv2.destroyAllWindows()
-		un = cv2.undistort(im, K, D_m)
-		cv2.imshow("undist", cv2.resize(un, dim))
-		if cv2.waitKey(0) & 0xff == 27:
-			cv2.destroyAllWindows()
-		undist_images.append(un)
-		un_m = cv2.undistort(im, K_m, D_m)
-		cv2.imshow("undist_m", cv2.resize(un_m, dim))
-		if cv2.waitKey(0) & 0xff == 27:
-			cv2.destroyAllWindows()
+	# h, w, _ = images[0].shape
+	# dim = (int(0.4*w), int(0.4*h))
+	for i, im in enumerate(images):
+		un = cv2.undistort(im, K, D)
+		cv2.imwrite("UndistortedImages/undistImg" + str(i) + ".png", un)
 
-	# res.x[5] = 0.0581
-	# res.x[6] = -0.2572
+		# Uncomment to display images 
+		# cv2.imshow("image", cv2.resize(im, dim))
+		# if cv2.waitKey(0) & 0xff == 27:
+		# 	cv2.destroyAllWindows()
+		# cv2.imshow("undist", cv2.resize(un, dim))
+		# if cv2.waitKey(0) & 0xff == 27:
+		# 	cv2.destroyAllWindows()
 
-
-
-	e = rep_error(res.x, corners, homographies)
-	print(e.shape)
-	error = np.mean(e)
-	print(error)
-
-	est_m = init_est(K_m)
-	est_m[5] = 0.0581
-	est_m[6] = -0.2572 
-
-	e = rep_error(est_m, corners, homographies)
-	print(e.shape)
-	error = np.mean(e)
-	print(error)
+	e = RMSerror(K, D, homographies, corners)
+	print("Reprojection error: ", e)
 
 if __name__ == '__main__':
 	main()
